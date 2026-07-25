@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Geheimer Chat — Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #F0F2F5; color: #111B21; }
+  #app { min-height: 100%; }
+
+  .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #111B21; }
+  .login-box { background: white; padding: 32px; border-radius: 12px; width: 320px; display: flex; flex-direction: column; gap: 14px; }
+  .login-box h1 { font-size: 18px; font-weight: 600; margin: 0; }
+  .login-box input { padding: 10px 12px; border-radius: 8px; border: 1px solid #D1D5DB; font-size: 14px; }
+  .login-box button { background: #111B21; color: white; border: none; padding: 10px 0; border-radius: 8px; font-weight: 500; font-size: 14px; }
+  .error-text { color: #D9534F; font-size: 13px; }
+
+  .topbar { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; background: #111B21; color: white; }
+  .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; }
+  .topbar button, .topbar a { background: rgba(255,255,255,0.9); color: #111B21; border: 1px solid #D1D5DB; border-radius: 6px; padding: 6px 10px; font-size: 12px; text-decoration: none; }
+
+  .dash-wrap { max-width: 640px; margin: 0 auto; padding: 24px; }
+  .add-btn { background: #00A884; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 500; margin-bottom: 16px; font-size: 14px; }
+  .cred-box { background: #FFF8E1; border: 1px solid #F0D98C; border-radius: 8px; padding: 14px; margin-bottom: 16px; font-size: 14px; }
+  .cred-box .dismiss { margin-top: 10px; background: #111B21; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; }
+  .worker-list { background: white; border-radius: 10px; overflow: hidden; }
+  .worker-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #eee; gap: 12px; }
+  .worker-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: #111B21; color: white; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  .worker-name { font-size: 14px; font-weight: 500; cursor: pointer; }
+  .worker-id { font-size: 11px; color: #667781; font-family: monospace; }
+  .worker-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .worker-actions button { border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; color: white; white-space: nowrap; }
+  .btn-chat { background: #00A884; }
+  .btn-reset { background: #6B7280; }
+  .nickname-input { font-size: 14px; padding: 4px 6px; border-radius: 6px; border: 1px solid #D1D5DB; }
+  .empty-state { padding: 20px; color: #667781; font-size: 14px; }
+
+  .chat-screen { height: calc(100vh - 0px); display: flex; flex-direction: column; }
+  .chat-back { padding: 8px 16px; background: #111B21; }
+  .chat-back a { color: white; font-size: 13px; text-decoration: none; }
+  .chat-header { background: #00A884; color: white; padding: 14px 18px; font-weight: 600; font-size: 16px; }
+  .messages { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; background: #EFEAE2; }
+  .bubble { max-width: 70%; border-radius: 8px; padding: 8px 10px; box-shadow: 0 1px 1px rgba(0,0,0,0.08); }
+  .bubble.mine { align-self: flex-end; background: #D9FDD3; }
+  .bubble.theirs { align-self: flex-start; background: white; }
+  .bubble img { max-width: 100%; border-radius: 6px; display: block; }
+  .bubble .time { font-size: 10px; color: #667781; text-align: right; margin-top: 2px; }
+  .composer { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #F0F2F5; }
+  .composer input[type="text"] { flex: 1; padding: 10px 14px; border-radius: 20px; border: none; font-size: 14px; }
+  .composer label { width: 38px; height: 38px; border-radius: 50%; background: white; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; cursor: pointer; }
+  .composer button { width: 38px; height: 38px; border-radius: 50%; background: #00A884; color: white; border: none; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ---- Fill these in ----
+const SUPABASE_URL = "https://xzesdxceqlscgyyjzjuw.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_2jdx3am9S7wQB3XlPMilyQ_bbgU1Mn-";
+const ADMIN_EMAIL = "you@yourcompany.com"; // must match the account you created in Supabase Auth
+const FUNCTIONS_URL = SUPABASE_URL.replace(".supabase.co", ".functions.supabase.co");
+// ------------------------
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const app = document.getElementById("app");
+let currentChannel = null;
+
+function escapeHtml(str) {
+  const d = document.createElement("div");
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function renderLogin(errorMsg) {
+  app.innerHTML = `
+    <div class="login-wrap">
+      <form class="login-box" id="login-form">
+        <h1>Admin login</h1>
+        <input id="email" placeholder="Email" type="email" required />
+        <input id="password" placeholder="Password" type="password" required />
+        ${errorMsg ? `<div class="error-text">${errorMsg}</div>` : ""}
+        <button type="submit" id="login-btn">Log in</button>
+      </form>
+    </div>
+  `;
+
+  document.getElementById("login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const btn = document.getElementById("login-btn");
+    btn.disabled = true;
+    btn.textContent = "Logging in…";
+
+    const { data, error } = await db.auth.signInWithPassword({ email, password });
+
+    if (error || !data.user) {
+      renderLogin("Email or password is incorrect.");
+      return;
+    }
+    if (data.user.email !== ADMIN_EMAIL) {
+      await db.auth.signOut();
+      renderLogin("This account isn't authorized for admin access.");
+      return;
+    }
+    renderDashboard();
+  });
+}
+
+async function callFunction(name, body) {
+  const { data: { session } } = await db.auth.getSession();
+  const res = await fetch(`${FUNCTIONS_URL}/${name}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify(body || {}),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
+
+async function renderDashboard() {
+  app.innerHTML = `
+    <div class="topbar">
+      <h1>Geheimer Chat — Admin</h1>
+      <button id="logout-btn">Log out</button>
+    </div>
+    <div class="dash-wrap">
+      <button class="add-btn" id="add-worker-btn">+ Add new worker</button>
+      <div id="cred-area"></div>
+      <div class="worker-list" id="worker-list"></div>
+    </div>
+  `;
+
+  document.getElementById("logout-btn").addEventListener("click", async () => {
+    await db.auth.signOut();
+    renderLogin();
+  });
+
+  document.getElementById("add-worker-btn").addEventListener("click", async (e) => {
+    const btn = e.target;
+    btn.disabled = true;
+    btn.textContent = "Creating…";
+    try {
+      const { loginId, password } = await callFunction("create-worker");
+      const credArea = document.getElementById("cred-area");
+      credArea.innerHTML = `
+        <div class="cred-box">
+          <div style="font-weight:600;margin-bottom:6px;">New worker created — save these now:</div>
+          <div>ID: <code>${loginId}</code></div>
+          <div>Password: <code>${password}</code></div>
+          <div style="font-size:12px;color:#667781;margin-top:6px;">This password won't be shown again.</div>
+          <button class="dismiss" id="dismiss-cred">Got it</button>
+        </div>
+      `;
+      document.getElementById("dismiss-cred").addEventListener("click", () => { credArea.innerHTML = ""; });
+      loadWorkers();
+    } catch (err) {
+      alert(err.message);
+    }
+    btn.disabled = false;
+    btn.textContent = "+ Add new worker";
+  });
+
+  async function loadWorkers() {
+    const { data: workers } = await db
+      .from("workers")
+      .select("id, login_id, worker_number, nickname, created_at")
+      .order("worker_number", { ascending: true });
+    renderWorkerList(workers || []);
+  }
+
+  function renderWorkerList(workers) {
+    const listEl = document.getElementById("worker-list");
+    if (workers.length === 0) {
+      listEl.innerHTML = `<div class="empty-state">No workers yet.</div>`;
+      return;
+    }
+    listEl.innerHTML = "";
+    workers.forEach((w) => {
+      const row = document.createElement("div");
+      row.className = "worker-row";
+      row.innerHTML = `
+        <div class="worker-left">
+          <div class="avatar">${w.worker_number}</div>
+          <div>
+            <div class="worker-name" data-id="${w.id}">${escapeHtml(w.nickname || ("Worker " + w.login_id))}</div>
+            <div class="worker-id">${w.login_id}</div>
+          </div>
+        </div>
+        <div class="worker-actions">
+          <button class="btn-chat" data-id="${w.id}" data-nickname="${escapeHtml(w.nickname || "")}" data-loginid="${w.login_id}">Chat</button>
+          <button class="btn-reset" data-id="${w.id}" data-num="${w.worker_number}">Reset password</button>
+        </div>
+      `;
+      listEl.appendChild(row);
+
+      const nameEl = row.querySelector(".worker-name");
+      nameEl.addEventListener("click", () => {
+        const input = document.createElement("input");
+        input.className = "nickname-input";
+        input.value = w.nickname || "";
+        nameEl.replaceWith(input);
+        input.focus();
+        async function save() {
+          const val = input.value.trim();
+          try {
+            await db.from("workers").update({ nickname: val || null }).eq("id", w.id);
+          } catch (err) { /* ignore */ }
+          loadWorkers();
+        }
+        input.addEventListener("blur", save);
+        input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
+      });
+
+      row.querySelector(".btn-chat").addEventListener("click", (e) => {
+        const label = e.target.dataset.nickname || ("Worker " + e.target.dataset.loginid);
+        renderChat(e.target.dataset.id, label);
+      });
+
+      row.querySelector(".btn-reset").addEventListener("click", async (e) => {
+        const workerId = e.target.dataset.id;
+        const num = e.target.dataset.num;
+        if (!confirm(`Reset the password for worker #${num}?`)) return;
+        try {
+          const { password } = await callFunction("reset-password", { workerId });
+          const credArea = document.getElementById("cred-area");
+          credArea.innerHTML = `
+            <div class="cred-box">
+              <div style="font-weight:600;margin-bottom:6px;">New password for worker #${num}:</div>
+              <div><code>${password}</code></div>
+              <div style="font-size:12px;color:#667781;margin-top:6px;">This won't be shown again.</div>
+              <button class="dismiss" id="dismiss-cred2">Got it</button>
+            </div>
+          `;
+          document.getElementById("dismiss-cred2").addEventListener("click", () => { credArea.innerHTML = ""; });
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
+  }
+
+  loadWorkers();
+}
+
+async function renderChat(workerId, label) {
+  app.innerHTML = `
+    <div class="chat-screen">
+      <div class="chat-back"><a href="#" id="back-link">← Back to workers</a></div>
+      <div class="chat-header">${escapeHtml(label)}</div>
+      <div class="messages" id="messages"></div>
+      <form class="composer" id="composer-form">
+        <input type="file" id="photo-input" accept="image/*" style="display:none;" />
+        <label for="photo-input">📷</label>
+        <input type="text" id="text-input" placeholder="Type a message" />
+        <button type="submit">➤</button>
+      </form>
+    </div>
+  `;
+
+  document.getElementById("back-link").addEventListener("click", (e) => {
+    e.preventDefault();
+    if (currentChannel) db.removeChannel(currentChannel);
+    renderDashboard();
+  });
+
+  const messagesEl = document.getElementById("messages");
+
+  function appendMessage(m) {
+    const mine = m.sender === "admin";
+    const div = document.createElement("div");
+    div.className = "bubble " + (mine ? "mine" : "theirs");
+    let inner = "";
+    if (m.image_url) inner += `<img src="${m.image_url}" alt="photo" />`;
+    if (m.content) inner += `<div>${escapeHtml(m.content)}</div>`;
+    inner += `<div class="time">${new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>`;
+    div.innerHTML = inner;
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  const { data: existing } = await db
+    .from("messages")
+    .select("*")
+    .eq("worker_id", workerId)
+    .order("created_at", { ascending: true });
+  (existing || []).forEach(appendMessage);
+
+  currentChannel = db
+    .channel(`messages:${workerId}`)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "messages", filter: `worker_id=eq.${workerId}` },
+      (payload) => appendMessage(payload.new)
+    )
+    .subscribe();
+
+  document.getElementById("composer-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = document.getElementById("text-input");
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    await db.from("messages").insert({ worker_id: workerId, sender: "admin", content: text });
+  });
+
+  document.getElementById("photo-input").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Only photos are allowed.");
+      return;
+    }
+    const path = `${workerId}/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await db.storage.from("chat-photos").upload(path, file);
+    if (uploadError) {
+      alert("Photo upload failed.");
+      return;
+    }
+    const { data: publicUrlData } = db.storage.from("chat-photos").getPublicUrl(path);
+    await db.from("messages").insert({ worker_id: workerId, sender: "admin", image_url: publicUrlData.publicUrl });
+    e.target.value = "";
+  });
+}
+
+(async () => {
+  const { data: { user } } = await db.auth.getUser();
+  if (user && user.email === ADMIN_EMAIL) renderDashboard();
+  else renderLogin();
+})();
+</script>
+</body>
+</html>
