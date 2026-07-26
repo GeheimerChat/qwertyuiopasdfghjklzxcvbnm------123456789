@@ -334,7 +334,7 @@ async function doLogin(){
     if(r.role !== "admin"){ errBox.textContent = "This is the admin panel. Use the member link instead."; errBox.style.display="block"; return; }
     state.user = r;
     enterApp();
-  }catch(e){ errBox.textContent = "Couldn't reach the server. Try again."; errBox.style.display="block"; }
+  }catch(e){ errBox.textContent = "Error: " + e.message; errBox.style.display="block"; }
 }
 
 document.getElementById("logout-btn").onclick = ()=>{
@@ -689,7 +689,7 @@ function renderSettings(){
       if(!r.ok){ err.textContent = r.error; err.style.display="block"; return; }
       toast("Password updated.");
       document.getElementById("cur-pw").value=""; document.getElementById("new-pw").value="";
-    }catch(e){ err.textContent = "Something went wrong."; err.style.display="block"; }
+    }catch(e){ err.textContent = "Error: " + e.message; err.style.display="block"; }
   };
 }
 
@@ -759,7 +759,7 @@ function renderMembers(){
       toast(`${dn} added — share the username/password with them.`);
       await refreshUsers();
       renderMembers();
-    }catch(e){ err.textContent = "Something went wrong."; err.style.display="block"; }
+    }catch(e){ err.textContent = "Error: " + e.message; err.style.display="block"; }
   };
   main.querySelectorAll("[data-reset]").forEach(b=>{
     b.onclick = async ()=>{
