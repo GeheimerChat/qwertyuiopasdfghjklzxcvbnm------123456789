@@ -4,340 +4,781 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Geheimer Chat — Admin</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #F0F2F5; color: #111B21; }
-  #app { min-height: 100%; }
+  :root{
+    --bg:#101114; --panel:#191b1f; --elevated:#212429; --border:#2b2f35;
+    --accent:#d9a441; --accent-dim:#8a6a2c; --accent-glow:rgba(217,164,65,.18);
+    --text:#ece9e2; --muted:#8b8f97; --danger:#c4553f; --success:#6fa287;
+    --radius:12px;
+  }
+  [data-theme="light"]{
+    --bg:#f3f1ec; --panel:#ffffff; --elevated:#f8f6f1; --border:#e2ddd2;
+    --text:#1c1c1c; --muted:#767267;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    background:var(--bg); color:var(--text); font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased; transition:background .25s,color .25s;
+  }
+  #root{height:100vh;display:flex;flex-direction:column;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+  ::selection{background:var(--accent-glow);}
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
 
-  .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #111B21; }
-  .login-box { background: white; padding: 32px; border-radius: 12px; width: 320px; display: flex; flex-direction: column; gap: 14px; }
-  .login-box h1 { font-size: 18px; font-weight: 600; margin: 0; }
-  .login-box input { padding: 10px 12px; border-radius: 8px; border: 1px solid #D1D5DB; font-size: 14px; }
-  .login-box button { background: #111B21; color: white; border: none; padding: 10px 0; border-radius: 8px; font-weight: 500; font-size: 14px; }
-  .error-text { color: #D9534F; font-size: 13px; }
+  /* ---------- Login ---------- */
+  #login-screen{
+    flex:1;display:flex;align-items:center;justify-content:center;
+    background:
+      radial-gradient(circle at 20% 15%, var(--accent-glow), transparent 45%),
+      var(--bg);
+  }
+  .login-card{
+    width:340px; background:var(--panel); border:1px solid var(--border);
+    border-radius:16px; padding:36px 32px; box-shadow:0 20px 60px rgba(0,0,0,.35);
+  }
+  .login-mark{
+    width:44px;height:44px;border-radius:10px;background:var(--accent);
+    display:flex;align-items:center;justify-content:center;margin-bottom:18px;
+    font-family:'Space Grotesk';font-weight:700;color:#161616;font-size:20px;
+  }
+  .login-card h1{font-size:22px;margin:0 0 4px;font-weight:700;}
+  .login-card p.sub{color:var(--muted);font-size:13px;margin:0 0 24px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;letter-spacing:.02em;}
+  .field input, .field select{
+    width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);
+    background:var(--elevated);color:var(--text);font-size:14px;outline:none;
+  }
+  .field input:focus, .field select:focus{border-color:var(--accent);}
+  .btn{
+    padding:10px 16px;border-radius:8px;border:none;font-size:14px;font-weight:600;
+  }
+  .btn-primary{background:var(--accent);color:#161616;width:100%;padding:11px;}
+  .btn-primary:hover{background:#e6b354;}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text);}
+  .btn-ghost:hover{border-color:var(--accent);}
+  .btn-danger{background:transparent;border:1px solid var(--danger);color:var(--danger);}
+  .error-box{
+    background:rgba(196,85,63,.12);border:1px solid var(--danger);color:var(--danger);
+    font-size:12.5px;padding:8px 10px;border-radius:8px;margin-bottom:14px;
+  }
+  .hint{font-size:11.5px;color:var(--muted);margin-top:14px;text-align:center;}
 
-  .topbar { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; background: #111B21; color: white; }
-  .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; }
-  .topbar button, .topbar a { background: rgba(255,255,255,0.9); color: #111B21; border: 1px solid #D1D5DB; border-radius: 6px; padding: 6px 10px; font-size: 12px; text-decoration: none; }
+  /* ---------- Shell ---------- */
+  #app-shell{flex:1;display:none;flex-direction:column;height:100vh;}
+  .topbar{
+    height:56px;border-bottom:1px solid var(--border);display:flex;align-items:center;
+    padding:0 18px;gap:12px;background:var(--panel);flex-shrink:0;
+  }
+  .topbar .brand{font-family:'Space Grotesk';font-weight:700;font-size:15px;}
+  .topbar .spacer{flex:1;}
+  .avatar-badge{
+    width:30px;height:30px;border-radius:50%;background:var(--elevated);
+    border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+    font-size:14px;
+  }
+  .icon-btn{
+    width:34px;height:34px;border-radius:8px;border:1px solid var(--border);
+    background:var(--elevated);color:var(--text);display:flex;align-items:center;justify-content:center;
+    font-size:15px;
+  }
+  .icon-btn:hover{border-color:var(--accent);}
 
-  .dash-wrap { max-width: 640px; margin: 0 auto; padding: 24px; }
-  .add-btn { background: #00A884; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 500; margin-bottom: 16px; font-size: 14px; }
-  .cred-box { background: #FFF8E1; border: 1px solid #F0D98C; border-radius: 8px; padding: 14px; margin-bottom: 16px; font-size: 14px; }
-  .cred-box .dismiss { margin-top: 10px; background: #111B21; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; }
-  .worker-list { background: white; border-radius: 10px; overflow: hidden; }
-  .worker-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #eee; gap: 12px; }
-  .worker-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
-  .avatar { width: 30px; height: 30px; border-radius: 50%; background: #111B21; color: white; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
-  .worker-name { font-size: 14px; font-weight: 500; cursor: pointer; }
-  .worker-id { font-size: 11px; color: #667781; font-family: monospace; }
-  .worker-actions { display: flex; gap: 8px; flex-shrink: 0; }
-  .worker-actions button { border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; color: white; white-space: nowrap; }
-  .btn-chat { background: #00A884; }
-  .btn-reset { background: #6B7280; }
-  .nickname-input { font-size: 14px; padding: 4px 6px; border-radius: 6px; border: 1px solid #D1D5DB; }
-  .empty-state { padding: 20px; color: #667781; font-size: 14px; }
+  .body-row{flex:1;display:flex;min-height:0;}
+  .rail{
+    width:68px;border-right:1px solid var(--border);background:var(--panel);
+    display:flex;flex-direction:column;align-items:center;padding-top:14px;gap:6px;flex-shrink:0;
+  }
+  .rail-btn{
+    width:46px;height:46px;border-radius:10px;border:none;background:transparent;
+    color:var(--muted);font-size:19px;display:flex;align-items:center;justify-content:center;
+  }
+  .rail-btn.active{background:var(--accent-glow);color:var(--accent);}
 
-  .chat-screen { height: calc(100vh - 0px); display: flex; flex-direction: column; }
-  .chat-back { padding: 8px 16px; background: #111B21; }
-  .chat-back a { color: white; font-size: 13px; text-decoration: none; }
-  .chat-header { background: #00A884; color: white; padding: 14px 18px; font-weight: 600; font-size: 16px; }
-  .messages { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; background: #EFEAE2; }
-  .bubble { max-width: 70%; border-radius: 8px; padding: 8px 10px; box-shadow: 0 1px 1px rgba(0,0,0,0.08); }
-  .bubble.mine { align-self: flex-end; background: #D9FDD3; }
-  .bubble.theirs { align-self: flex-start; background: white; }
-  .bubble img { max-width: 100%; border-radius: 6px; display: block; }
-  .bubble .time { font-size: 10px; color: #667781; text-align: right; margin-top: 2px; }
-  .composer { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #F0F2F5; }
-  .composer input[type="text"] { flex: 1; padding: 10px 14px; border-radius: 20px; border: none; font-size: 14px; }
-  .composer label { width: 38px; height: 38px; border-radius: 50%; background: white; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; cursor: pointer; }
-  .composer button { width: 38px; height: 38px; border-radius: 50%; background: #00A884; color: white; border: none; flex-shrink: 0; }
+  .admin-rail{
+    width:200px;border-right:1px solid var(--border);background:var(--panel);
+    padding:14px 10px;flex-shrink:0;overflow-y:auto;
+  }
+  .admin-rail .nav-item{
+    display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;
+    color:var(--muted);font-size:13.5px;font-weight:500;margin-bottom:2px;
+  }
+  .admin-rail .nav-item.active{background:var(--accent-glow);color:var(--accent);}
+  .admin-rail .nav-item:hover{color:var(--text);}
+
+  .main-area{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;}
+
+  /* ---------- Chat ---------- */
+  .chat-header{
+    padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;
+  }
+  .chat-header h2{margin:0;font-size:16px;font-family:'Space Grotesk';}
+  .status-dot{width:8px;height:8px;border-radius:50%;background:var(--success);}
+  .pinned-shelf{
+    background:var(--elevated);border-bottom:1px solid var(--border);padding:8px 20px;
+    display:flex;flex-direction:column;gap:4px;
+  }
+  .pinned-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);}
+  .pinned-row .pin-ic{color:var(--accent);}
+  .pinned-row .txt{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pinned-row button{background:none;border:none;color:var(--muted);font-size:11px;}
+
+  .msg-list{flex:1;overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:14px;}
+  .msg{max-width:62%;display:flex;flex-direction:column;gap:3px;}
+  .msg.own{align-self:flex-end;align-items:flex-end;}
+  .msg .sender{font-size:11.5px;color:var(--muted);padding:0 2px;}
+  .bubble{
+    background:var(--elevated);border:1px solid var(--border);border-radius:14px;
+    padding:9px 13px;font-size:14px;line-height:1.45;position:relative;
+  }
+  .msg.own .bubble{background:var(--accent-glow);border-color:var(--accent-dim);}
+  .reply-quote{
+    border-left:2px solid var(--accent);padding:3px 8px;margin-bottom:6px;
+    font-size:12px;color:var(--muted);background:rgba(255,255,255,.03);border-radius:4px;
+  }
+  .bubble img{max-width:220px;border-radius:8px;display:block;margin-top:6px;}
+  .msg-meta{display:flex;gap:8px;align-items:center;padding:0 2px;}
+  .msg-time{font-size:10.5px;color:var(--muted);}
+  .msg-seen{font-size:10.5px;color:var(--accent);}
+  .msg-actions{display:none;gap:4px;}
+  .msg:hover .msg-actions{display:flex;}
+  .msg-actions button{
+    background:var(--elevated);border:1px solid var(--border);border-radius:6px;
+    font-size:11px;padding:2px 6px;color:var(--muted);
+  }
+  .msg-actions button:hover{color:var(--accent);border-color:var(--accent);}
+  .reactions-row{display:flex;gap:4px;flex-wrap:wrap;padding:0 2px;}
+  .reaction-pill{
+    background:var(--elevated);border:1px solid var(--border);border-radius:20px;
+    font-size:11.5px;padding:1px 7px;color:var(--text);
+  }
+  .reaction-pill.mine{border-color:var(--accent);color:var(--accent);}
+
+  .composer{
+    border-top:1px solid var(--border);padding:12px 16px;display:flex;flex-direction:column;gap:6px;
+  }
+  .reply-bar{
+    display:none;background:var(--elevated);border:1px solid var(--border);border-radius:8px;
+    padding:6px 10px;font-size:12px;color:var(--muted);align-items:center;gap:8px;
+  }
+  .reply-bar span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .composer-row{display:flex;align-items:center;gap:8px;}
+  .composer-row input[type=text]{
+    flex:1;padding:11px 14px;border-radius:20px;border:1px solid var(--border);
+    background:var(--elevated);color:var(--text);font-size:14px;outline:none;
+  }
+  .composer-row input[type=text]:focus{border-color:var(--accent);}
+  .emoji-pop{
+    display:none;position:absolute;bottom:56px;background:var(--panel);border:1px solid var(--border);
+    border-radius:10px;padding:8px;grid-template-columns:repeat(7,1fr);gap:4px;box-shadow:0 10px 30px rgba(0,0,0,.4);
+    z-index:20;
+  }
+  .emoji-pop button{background:none;border:none;font-size:18px;padding:4px;border-radius:6px;}
+  .emoji-pop button:hover{background:var(--elevated);}
+  .composer-wrap{position:relative;}
+
+  /* ---------- Settings ---------- */
+  .panel-scroll{flex:1;overflow-y:auto;padding:26px 30px;}
+  .settings-card{
+    background:var(--panel);border:1px solid var(--border);border-radius:14px;
+    padding:20px 22px;margin-bottom:16px;max-width:460px;
+  }
+  .settings-card h3{margin:0 0 4px;font-size:14px;font-family:'Space Grotesk';}
+  .settings-card p.desc{color:var(--muted);font-size:12.5px;margin:0 0 14px;}
+  .emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:10px;}
+  .emoji-grid button{background:var(--elevated);border:1px solid var(--border);border-radius:8px;font-size:17px;padding:6px 0;}
+  .emoji-grid button.sel{border-color:var(--accent);background:var(--accent-glow);}
+  .theme-toggle-row{display:flex;gap:8px;}
+  .theme-toggle-row button{flex:1;}
+
+  /* ---------- Admin ---------- */
+  .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px;max-width:640px;}
+  .stat-card{
+    background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px 18px;
+  }
+  .stat-card .num{font-family:'Space Grotesk';font-size:28px;font-weight:700;color:var(--accent);}
+  .stat-card .lbl{font-size:12px;color:var(--muted);margin-top:2px;}
+  .member-table{width:100%;border-collapse:collapse;max-width:720px;}
+  .member-table th{
+    text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
+    padding:8px 10px;border-bottom:1px solid var(--border);
+  }
+  .member-table td{padding:10px;border-bottom:1px solid var(--border);font-size:13.5px;}
+  .member-table tr:hover{background:var(--elevated);}
+  .row-actions{display:flex;gap:6px;}
+  .row-actions button{font-size:11.5px;padding:4px 9px;border-radius:6px;}
+  .section-title{font-family:'Space Grotesk';font-size:17px;margin:0 0 16px;}
+  .toast{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    background:var(--elevated);border:1px solid var(--accent);color:var(--text);
+    padding:10px 18px;border-radius:10px;font-size:13px;z-index:100;display:none;
+  }
 </style>
 </head>
-<body>
-<div id="app"></div>
+<body data-theme="dark">
+<div id="root">
+
+  <!-- LOGIN -->
+  <div id="login-screen">
+    <div class="login-card">
+      <div class="login-mark">G</div>
+      <h1>Geheimer Chat — Admin</h1>
+      <p class="sub">Sign in with your admin account.</p>
+      <div id="login-error" class="error-box" style="display:none;"></div>
+      <div class="field">
+        <label>Username</label>
+        <input id="login-username" type="text" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input id="login-password" type="password" autocomplete="current-password" />
+      </div>
+      <button class="btn btn-primary" id="login-btn">Sign in</button>
+      <p class="hint">Admin access only · members should use the member link</p>
+    </div>
+  </div>
+
+  <!-- APP SHELL -->
+  <div id="app-shell">
+    <div class="topbar">
+      <div class="login-mark" style="width:28px;height:28px;font-size:14px;margin:0;">G</div>
+      <div class="brand">Geheimer Chat</div>
+      <div class="spacer"></div>
+      <button class="icon-btn" id="theme-toggle-top" title="Toggle theme">◐</button>
+      <div class="avatar-badge" id="me-avatar">🙂</div>
+      <button class="btn btn-ghost" id="logout-btn" style="padding:7px 12px;font-size:12.5px;">Log out</button>
+    </div>
+    <div class="body-row">
+      <!-- Member rail -->
+      <div class="rail" id="member-rail" style="display:none;">
+        <button class="rail-btn active" data-tab="chat" title="Chat">💬</button>
+        <button class="rail-btn" data-tab="settings" title="Settings">⚙️</button>
+      </div>
+      <!-- Admin rail -->
+      <div class="admin-rail" id="admin-rail" style="display:none;">
+        <div class="nav-item active" data-tab="overview">📊&nbsp; Overview</div>
+        <div class="nav-item" data-tab="members">👥&nbsp; Members</div>
+        <div class="nav-item" data-tab="chat">💬&nbsp; Group chat</div>
+        <div class="nav-item" data-tab="settings">⚙️&nbsp; Settings</div>
+      </div>
+
+      <div class="main-area" id="main-area"><!-- injected --></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
 
 <script>
-// ---- Fill these in ----
-const SUPABASE_URL = "https://xzesdxceqlscgyyjzjuw.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_2jdx3am9S7wQB3XlPMilyQ_bbgU1Mn-";
-const ADMIN_EMAIL = "you@yourcompany.com"; // must match the account you created in Supabase Auth
-const FUNCTIONS_URL = SUPABASE_URL.replace(".supabase.co", ".functions.supabase.co");
-// ------------------------
+const SUPABASE_URL = "https://cocspoxdybssykntncsu.supabase.co";
+const SUPABASE_KEY = "sb_publishable_PJdNBN1YRTd01AAucJYquA_MKcs0ca8";
+const REST = SUPABASE_URL + "/rest/v1";
 
-const { createClient } = supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const LANGS = {
+  en:{chat:"Chat",settings:"Settings",members:"Members",overview:"Overview",send:"Send",typemsg:"Message"},
+  ne:{chat:"च्याट",settings:"सेटिङ",members:"सदस्यहरू",overview:"अवलोकन",send:"पठाउनुहोस्",typemsg:"सन्देश"},
+  hi:{chat:"चैट",settings:"सेटिंग्स",members:"सदस्य",overview:"अवलोकन",send:"भेजें",typemsg:"संदेश"},
+  ru:{chat:"Чат",settings:"Настройки",members:"Участники",overview:"Обзор",send:"Отправить",typemsg:"Сообщение"},
+  de:{chat:"Chat",settings:"Einstellungen",members:"Mitglieder",overview:"Übersicht",send:"Senden",typemsg:"Nachricht"},
+};
+let lang = "en";
 
-const app = document.getElementById("app");
-let currentChannel = null;
+const EMOJIS = ["😀","😂","😍","🥲","😎","🤔","👍","🙏","🔥","🎉","❤️","😢","😮","🙌","👏","💯","😅","🤝","✨","😴"];
 
-function escapeHtml(str) {
-  const d = document.createElement("div");
-  d.textContent = str;
-  return d.innerHTML;
+let state = { user: null, users: [], messages: [], pollTimer: null, replyTarget: null, currentTab: "chat" };
+
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.style.display = "block";
+  clearTimeout(t._h); t._h = setTimeout(()=> t.style.display="none", 2600);
 }
 
-function renderLogin(errorMsg) {
-  app.innerHTML = `
-    <div class="login-wrap">
-      <form class="login-box" id="login-form">
-        <h1>Admin login</h1>
-        <input id="email" placeholder="Email" type="email" required />
-        <input id="password" placeholder="Password" type="password" required />
-        ${errorMsg ? `<div class="error-text">${errorMsg}</div>` : ""}
-        <button type="submit" id="login-btn">Log in</button>
-      </form>
-    </div>
-  `;
-
-  document.getElementById("login-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
-    const btn = document.getElementById("login-btn");
-    btn.disabled = true;
-    btn.textContent = "Logging in…";
-
-    const { data, error } = await db.auth.signInWithPassword({ email, password });
-
-    if (error || !data.user) {
-      renderLogin("Email or password is incorrect.");
-      return;
-    }
-    if (data.user.email !== ADMIN_EMAIL) {
-      await db.auth.signOut();
-      renderLogin("This account isn't authorized for admin access.");
-      return;
-    }
-    renderDashboard();
-  });
-}
-
-async function callFunction(name, body) {
-  const { data: { session } } = await db.auth.getSession();
-  const res = await fetch(`${FUNCTIONS_URL}/${name}`, {
-    method: "POST",
+async function api(path, opts={}){
+  const res = await fetch(REST + path, {
+    ...opts,
     headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": "Bearer " + SUPABASE_KEY,
       "Content-Type": "application/json",
-      Authorization: `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify(body || {}),
+      ...(opts.headers||{})
+    }
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Request failed");
-  return data;
+  if(!res.ok){
+    const t = await res.text();
+    throw new Error(t || res.statusText);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 
-async function renderDashboard() {
-  app.innerHTML = `
-    <div class="topbar">
-      <h1>Geheimer Chat — Admin</h1>
-      <button id="logout-btn">Log out</button>
+async function rpc(fn, body){ return api("/rpc/"+fn, {method:"POST", body: JSON.stringify(body)}); }
+
+// ---------- Auth ----------
+document.getElementById("login-btn").onclick = doLogin;
+document.getElementById("login-password").addEventListener("keydown", e=>{ if(e.key==="Enter") doLogin(); });
+
+async function doLogin(){
+  const u = document.getElementById("login-username").value.trim();
+  const p = document.getElementById("login-password").value;
+  const errBox = document.getElementById("login-error");
+  errBox.style.display = "none";
+  if(!u || !p){ errBox.textContent = "Enter a username and password."; errBox.style.display="block"; return; }
+  try{
+    const r = await rpc("login_user", {p_username:u, p_password:p});
+    if(!r.ok){ errBox.textContent = r.error; errBox.style.display="block"; return; }
+    if(r.role !== "admin"){ errBox.textContent = "This is the admin panel. Use the member link instead."; errBox.style.display="block"; return; }
+    state.user = r;
+    enterApp();
+  }catch(e){ errBox.textContent = "Couldn't reach the server. Try again."; errBox.style.display="block"; }
+}
+
+document.getElementById("logout-btn").onclick = ()=>{
+  clearInterval(state.pollTimer);
+  state.user = null;
+  document.getElementById("app-shell").style.display = "none";
+  document.getElementById("login-screen").style.display = "flex";
+  document.getElementById("login-username").value = "";
+  document.getElementById("login-password").value = "";
+};
+
+function applyTheme(t){
+  document.body.setAttribute("data-theme", t);
+}
+document.getElementById("theme-toggle-top").onclick = async ()=>{
+  const cur = document.body.getAttribute("data-theme");
+  const next = cur === "dark" ? "light" : "dark";
+  applyTheme(next);
+  if(state.user){
+    api("/app_users?id=eq."+state.user.id, {method:"PATCH", body: JSON.stringify({theme: next})}).catch(()=>{});
+  }
+};
+
+async function enterApp(){
+  document.getElementById("login-screen").style.display = "none";
+  document.getElementById("app-shell").style.display = "flex";
+  applyTheme(state.user.theme || "dark");
+  document.getElementById("me-avatar").textContent = state.user.avatar_emoji || (state.user.display_name||"?")[0].toUpperCase();
+
+  if(state.user.role === "admin"){
+    document.getElementById("admin-rail").style.display = "block";
+    document.getElementById("member-rail").style.display = "none";
+    bindNav("admin-rail", "nav-item");
+    state.currentTab = "overview";
+    await refreshUsers();
+    renderTab();
+  } else {
+    document.getElementById("member-rail").style.display = "flex";
+    document.getElementById("admin-rail").style.display = "none";
+    bindNav("member-rail", "rail-btn");
+    state.currentTab = "chat";
+    await refreshUsers();
+    renderTab();
+  }
+  await refreshMessages();
+  state.pollTimer = setInterval(async ()=>{
+    await refreshMessages();
+    if(state.currentTab === "chat") renderChat();
+    if(state.currentTab === "members") renderMembers();
+    if(state.currentTab === "overview") renderOverview();
+  }, 3000);
+}
+
+function bindNav(railId, itemClass){
+  document.querySelectorAll("#"+railId+" ."+itemClass).forEach(el=>{
+    el.onclick = ()=>{
+      document.querySelectorAll("#"+railId+" ."+itemClass).forEach(x=>x.classList.remove("active"));
+      el.classList.add("active");
+      state.currentTab = el.dataset.tab;
+      renderTab();
+    };
+  });
+}
+
+async function refreshUsers(){
+  state.users = await api("/app_users?select=id,username,display_name,role,theme,avatar_emoji,status,created_at&order=created_at.asc");
+}
+async function refreshMessages(){
+  state.messages = await api("/messages?select=*&order=created_at.asc");
+  const reactions = await api("/reactions?select=*");
+  const reads = await api("/reads?select=*");
+  state.messages.forEach(m=>{
+    m._reactions = reactions.filter(r=>r.message_id===m.id);
+    m._reads = reads.filter(r=>r.message_id===m.id);
+  });
+}
+
+function userById(id){ return state.users.find(u=>u.id===id); }
+
+function renderTab(){
+  const tab = state.currentTab;
+  if(tab === "chat") renderChat();
+  else if(tab === "settings") renderSettings();
+  else if(tab === "overview") renderOverview();
+  else if(tab === "members") renderMembers();
+}
+
+// ---------- Chat ----------
+function renderChat(){
+  const main = document.getElementById("main-area");
+  main.innerHTML = `
+    <div class="chat-header">
+      <div class="status-dot"></div>
+      <h2>Friend Group</h2>
     </div>
-    <div class="dash-wrap">
-      <button class="add-btn" id="add-worker-btn">+ Add new worker</button>
-      <div id="cred-area"></div>
-      <div class="worker-list" id="worker-list"></div>
+    <div class="pinned-shelf" id="pinned-shelf" style="display:none;"></div>
+    <div class="msg-list" id="msg-list"></div>
+    <div class="composer">
+      <div class="reply-bar" id="reply-bar"><span id="reply-bar-text"></span><button id="reply-cancel">✕</button></div>
+      <div class="composer-row composer-wrap">
+        <button class="icon-btn" id="emoji-btn">😊</button>
+        <button class="icon-btn" id="image-btn">📷</button>
+        <input type="file" id="image-input" accept="image/*" style="display:none;" />
+        <input type="text" id="msg-input" placeholder="${LANGS[lang].typemsg}…" />
+        <button class="btn btn-primary" id="send-btn" style="width:auto;">${LANGS[lang].send}</button>
+        <div class="emoji-pop" id="emoji-pop" style="display:grid;"></div>
+      </div>
     </div>
   `;
-
-  document.getElementById("logout-btn").addEventListener("click", async () => {
-    await db.auth.signOut();
-    renderLogin();
+  const pop = document.getElementById("emoji-pop");
+  pop.style.display = "none";
+  EMOJIS.forEach(e=>{
+    const b = document.createElement("button");
+    b.textContent = e;
+    b.onclick = ()=>{ document.getElementById("msg-input").value += e; pop.style.display="none"; };
+    pop.appendChild(b);
   });
+  document.getElementById("emoji-btn").onclick = ()=>{
+    pop.style.display = pop.style.display === "none" ? "grid" : "none";
+  };
+  document.getElementById("image-btn").onclick = ()=> document.getElementById("image-input").click();
+  document.getElementById("image-input").onchange = handleImagePick;
+  document.getElementById("send-btn").onclick = sendMessage;
+  document.getElementById("msg-input").addEventListener("keydown", e=>{ if(e.key==="Enter") sendMessage(); });
+  document.getElementById("reply-cancel").onclick = ()=>{ state.replyTarget=null; document.getElementById("reply-bar").style.display="none"; };
 
-  document.getElementById("add-worker-btn").addEventListener("click", async (e) => {
-    const btn = e.target;
-    btn.disabled = true;
-    btn.textContent = "Creating…";
-    try {
-      const { loginId, password } = await callFunction("create-worker");
-      const credArea = document.getElementById("cred-area");
-      credArea.innerHTML = `
-        <div class="cred-box">
-          <div style="font-weight:600;margin-bottom:6px;">New worker created — save these now:</div>
-          <div>ID: <code>${loginId}</code></div>
-          <div>Password: <code>${password}</code></div>
-          <div style="font-size:12px;color:#667781;margin-top:6px;">This password won't be shown again.</div>
-          <button class="dismiss" id="dismiss-cred">Got it</button>
+  renderPinned();
+  renderMessages();
+  markVisibleAsRead();
+}
+
+let pendingImage = null;
+function handleImagePick(e){
+  const f = e.target.files[0];
+  if(!f) return;
+  if(f.size > 1_500_000){ toast("Image too large — please pick something under ~1.5MB."); return; }
+  const reader = new FileReader();
+  reader.onload = ()=>{ pendingImage = reader.result; toast("Image attached — hit send."); };
+  reader.readAsDataURL(f);
+}
+
+async function sendMessage(){
+  const input = document.getElementById("msg-input");
+  const text = input.value.trim();
+  if(!text && !pendingImage) return;
+  const body = { sender_id: state.user.id, body: text || null, image_data: pendingImage || null };
+  if(state.replyTarget) body.reply_to = state.replyTarget;
+  try{
+    await api("/messages", {method:"POST", body: JSON.stringify(body)});
+    input.value = "";
+    pendingImage = null;
+    state.replyTarget = null;
+    document.getElementById("reply-bar").style.display = "none";
+    await refreshMessages();
+    renderMessages();
+    renderPinned();
+  }catch(e){ toast("Message didn't send — try again."); }
+}
+
+function renderPinned(){
+  const shelf = document.getElementById("pinned-shelf");
+  if(!shelf) return;
+  const pinned = state.messages.filter(m=>m.pinned);
+  if(pinned.length===0){ shelf.style.display="none"; return; }
+  shelf.style.display = "flex";
+  shelf.innerHTML = pinned.map(m=>{
+    const sender = userById(m.sender_id);
+    const label = m.body ? m.body : "📷 Photo";
+    return `<div class="pinned-row"><span class="pin-ic">📌</span><span class="txt"><b>${escapeHtml(sender?.display_name||"?")}:</b> ${escapeHtml(label)}</span><button data-unpin="${m.id}">Unpin</button></div>`;
+  }).join("");
+  shelf.querySelectorAll("[data-unpin]").forEach(b=>{
+    b.onclick = ()=> togglePin(b.dataset.unpin, false);
+  });
+}
+
+function renderMessages(){
+  const list = document.getElementById("msg-list");
+  if(!list) return;
+  list.innerHTML = state.messages.map(m=>{
+    const sender = userById(m.sender_id);
+    const isOwn = m.sender_id === state.user.id;
+    const replyMsg = m.reply_to ? state.messages.find(x=>x.id===m.reply_to) : null;
+    const replySender = replyMsg ? userById(replyMsg.sender_id) : null;
+    const reacts = {};
+    (m._reactions||[]).forEach(r=>{ reacts[r.emoji] = reacts[r.emoji]||[]; reacts[r.emoji].push(r.user_id); });
+    const reactHtml = Object.entries(reacts).map(([em, uids])=>{
+      const mine = uids.includes(state.user.id);
+      return `<button class="reaction-pill ${mine?'mine':''}" data-react="${m.id}|${em}">${em} ${uids.length}</button>`;
+    }).join("");
+    const seenByOthers = (m._reads||[]).filter(r=>r.user_id!==m.sender_id);
+    const seenLabel = isOwn && seenByOthers.length>0 ? `<span class="msg-seen">Seen</span>` : "";
+    return `
+      <div class="msg ${isOwn?'own':''}" data-mid="${m.id}">
+        <div class="sender">${escapeHtml(sender?.display_name || "Unknown")}</div>
+        <div class="bubble">
+          ${replyMsg ? `<div class="reply-quote">${escapeHtml(replySender?.display_name||"?")}: ${escapeHtml((replyMsg.body||"📷 Photo").slice(0,60))}</div>` : ""}
+          ${m.body ? escapeHtml(m.body) : ""}
+          ${m.image_data ? `<img src="${m.image_data}" />` : ""}
         </div>
-      `;
-      document.getElementById("dismiss-cred").addEventListener("click", () => { credArea.innerHTML = ""; });
-      loadWorkers();
-    } catch (err) {
-      alert(err.message);
-    }
-    btn.disabled = false;
-    btn.textContent = "+ Add new worker";
-  });
-
-  async function loadWorkers() {
-    const { data: workers } = await db
-      .from("workers")
-      .select("id, login_id, worker_number, nickname, created_at")
-      .order("worker_number", { ascending: true });
-    renderWorkerList(workers || []);
-  }
-
-  function renderWorkerList(workers) {
-    const listEl = document.getElementById("worker-list");
-    if (workers.length === 0) {
-      listEl.innerHTML = `<div class="empty-state">No workers yet.</div>`;
-      return;
-    }
-    listEl.innerHTML = "";
-    workers.forEach((w) => {
-      const row = document.createElement("div");
-      row.className = "worker-row";
-      row.innerHTML = `
-        <div class="worker-left">
-          <div class="avatar">${w.worker_number}</div>
-          <div>
-            <div class="worker-name" data-id="${w.id}">${escapeHtml(w.nickname || ("Worker " + w.login_id))}</div>
-            <div class="worker-id">${w.login_id}</div>
+        <div class="reactions-row">${reactHtml}</div>
+        <div class="msg-meta">
+          <span class="msg-time">${new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
+          ${seenLabel}
+          <div class="msg-actions">
+            <button data-reply="${m.id}">Reply</button>
+            <button data-react-open="${m.id}">React</button>
+            <button data-pin="${m.id}">${m.pinned?"Unpin":"Pin"}</button>
           </div>
         </div>
-        <div class="worker-actions">
-          <button class="btn-chat" data-id="${w.id}" data-nickname="${escapeHtml(w.nickname || "")}" data-loginid="${w.login_id}">Chat</button>
-          <button class="btn-reset" data-id="${w.id}" data-num="${w.worker_number}">Reset password</button>
-        </div>
-      `;
-      listEl.appendChild(row);
+      </div>`;
+  }).join("");
+  list.scrollTop = list.scrollHeight;
 
-      const nameEl = row.querySelector(".worker-name");
-      nameEl.addEventListener("click", () => {
-        const input = document.createElement("input");
-        input.className = "nickname-input";
-        input.value = w.nickname || "";
-        nameEl.replaceWith(input);
-        input.focus();
-        async function save() {
-          const val = input.value.trim();
-          try {
-            await db.from("workers").update({ nickname: val || null }).eq("id", w.id);
-          } catch (err) { /* ignore */ }
-          loadWorkers();
-        }
-        input.addEventListener("blur", save);
-        input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
-      });
-
-      row.querySelector(".btn-chat").addEventListener("click", (e) => {
-        const label = e.target.dataset.nickname || ("Worker " + e.target.dataset.loginid);
-        renderChat(e.target.dataset.id, label);
-      });
-
-      row.querySelector(".btn-reset").addEventListener("click", async (e) => {
-        const workerId = e.target.dataset.id;
-        const num = e.target.dataset.num;
-        if (!confirm(`Reset the password for worker #${num}?`)) return;
-        try {
-          const { password } = await callFunction("reset-password", { workerId });
-          const credArea = document.getElementById("cred-area");
-          credArea.innerHTML = `
-            <div class="cred-box">
-              <div style="font-weight:600;margin-bottom:6px;">New password for worker #${num}:</div>
-              <div><code>${password}</code></div>
-              <div style="font-size:12px;color:#667781;margin-top:6px;">This won't be shown again.</div>
-              <button class="dismiss" id="dismiss-cred2">Got it</button>
-            </div>
-          `;
-          document.getElementById("dismiss-cred2").addEventListener("click", () => { credArea.innerHTML = ""; });
-        } catch (err) {
-          alert(err.message);
-        }
-      });
-    });
-  }
-
-  loadWorkers();
+  list.querySelectorAll("[data-reply]").forEach(b=> b.onclick = ()=> setReply(b.dataset.reply));
+  list.querySelectorAll("[data-pin]").forEach(b=> b.onclick = ()=> togglePin(b.dataset.pin, !state.messages.find(m=>m.id===b.dataset.pin).pinned));
+  list.querySelectorAll("[data-react]").forEach(b=>{
+    b.onclick = ()=>{
+      const [mid, em] = b.dataset.react.split("|");
+      toggleReaction(mid, em);
+    };
+  });
+  list.querySelectorAll("[data-react-open]").forEach(b=>{
+    b.onclick = ()=> quickReact(b.dataset.reactOpen);
+  });
 }
 
-async function renderChat(workerId, label) {
-  app.innerHTML = `
-    <div class="chat-screen">
-      <div class="chat-back"><a href="#" id="back-link">← Back to workers</a></div>
-      <div class="chat-header">${escapeHtml(label)}</div>
-      <div class="messages" id="messages"></div>
-      <form class="composer" id="composer-form">
-        <input type="file" id="photo-input" accept="image/*" style="display:none;" />
-        <label for="photo-input">📷</label>
-        <input type="text" id="text-input" placeholder="Type a message" />
-        <button type="submit">➤</button>
-      </form>
+function setReply(mid){
+  state.replyTarget = mid;
+  const m = state.messages.find(x=>x.id===mid);
+  const sender = userById(m.sender_id);
+  document.getElementById("reply-bar").style.display = "flex";
+  document.getElementById("reply-bar-text").textContent = `Replying to ${sender?.display_name||"?"}: ${(m.body||"📷 Photo").slice(0,50)}`;
+}
+
+async function togglePin(mid, val){
+  if(val){
+    const currentlyPinned = state.messages.filter(m=>m.pinned).length;
+    if(currentlyPinned >= 3){ toast("Only 3 messages can be pinned — unpin one first."); return; }
+  }
+  await api("/messages?id=eq."+mid, {method:"PATCH", body: JSON.stringify({pinned: val})});
+  await refreshMessages();
+  renderPinned(); renderMessages();
+}
+
+async function quickReact(mid){
+  const em = prompt("React with an emoji (e.g. 👍 ❤️ 😂):", "👍");
+  if(!em) return;
+  await toggleReaction(mid, em.trim());
+}
+async function toggleReaction(mid, em){
+  const existing = (state.messages.find(m=>m.id===mid)._reactions||[]).find(r=>r.user_id===state.user.id && r.emoji===em);
+  if(existing){
+    await api(`/reactions?message_id=eq.${mid}&user_id=eq.${state.user.id}&emoji=eq.${encodeURIComponent(em)}`, {method:"DELETE"});
+  } else {
+    await api("/reactions", {method:"POST", body: JSON.stringify({message_id:mid, user_id:state.user.id, emoji:em})});
+  }
+  await refreshMessages();
+  renderMessages();
+}
+
+async function markVisibleAsRead(){
+  const unread = state.messages.filter(m=> m.sender_id!==state.user.id && !(m._reads||[]).some(r=>r.user_id===state.user.id));
+  for(const m of unread){
+    api("/reads", {method:"POST", headers:{"Prefer":"resolution=ignore-duplicates"}, body: JSON.stringify({message_id:m.id, user_id:state.user.id})}).catch(()=>{});
+  }
+}
+
+function escapeHtml(s){
+  return (s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+// ---------- Settings ----------
+function renderSettings(){
+  const main = document.getElementById("main-area");
+  const isDark = document.body.getAttribute("data-theme")==="dark";
+  main.innerHTML = `
+    <div class="panel-scroll">
+      <h2 class="section-title">Settings</h2>
+
+      <div class="settings-card">
+        <h3>Theme</h3>
+        <p class="desc">Switch between dark and light.</p>
+        <div class="theme-toggle-row">
+          <button class="btn btn-ghost" id="set-dark" style="${isDark?'border-color:var(--accent);color:var(--accent);':''}">Dark</button>
+          <button class="btn btn-ghost" id="set-light" style="${!isDark?'border-color:var(--accent);color:var(--accent);':''}">Light</button>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>Language</h3>
+        <p class="desc">Interface language.</p>
+        <select id="lang-select">
+          <option value="en" ${lang==='en'?'selected':''}>English</option>
+          <option value="ne" ${lang==='ne'?'selected':''}>नेपाली (Nepali)</option>
+          <option value="hi" ${lang==='hi'?'selected':''}>हिन्दी (Hindi)</option>
+          <option value="ru" ${lang==='ru'?'selected':''}>Русский (Russian)</option>
+          <option value="de" ${lang==='de'?'selected':''}>Deutsch (German)</option>
+        </select>
+      </div>
+
+      <div class="settings-card">
+        <h3>Profile</h3>
+        <p class="desc">Pick an avatar emoji and set a status.</p>
+        <div class="emoji-grid" id="avatar-grid"></div>
+        <div class="field">
+          <label>Status</label>
+          <input type="text" id="status-input" value="${escapeHtml(state.user.status||'')}" placeholder="e.g. around this weekend" />
+        </div>
+        <button class="btn btn-primary" id="save-profile-btn" style="width:auto;">Save profile</button>
+      </div>
+
+      <div class="settings-card">
+        <h3>Change password</h3>
+        <div id="pw-error" class="error-box" style="display:none;"></div>
+        <div class="field"><label>Current password</label><input type="password" id="cur-pw" /></div>
+        <div class="field"><label>New password</label><input type="password" id="new-pw" /></div>
+        <button class="btn btn-primary" id="change-pw-btn" style="width:auto;">Update password</button>
+      </div>
     </div>
   `;
-
-  document.getElementById("back-link").addEventListener("click", (e) => {
-    e.preventDefault();
-    if (currentChannel) db.removeChannel(currentChannel);
-    renderDashboard();
+  const grid = document.getElementById("avatar-grid");
+  ["🙂","😎","🦊","🐺","🐼","🐸","🐙","🌵","⚡","🌙","🎧","🛹","🍜","🌊","🔥","🎮"].forEach(em=>{
+    const b = document.createElement("button");
+    b.textContent = em;
+    if(state.user.avatar_emoji===em) b.classList.add("sel");
+    b.onclick = ()=>{ 
+      grid.querySelectorAll("button").forEach(x=>x.classList.remove("sel"));
+      b.classList.add("sel");
+      state.user.avatar_emoji = em;
+    };
+    grid.appendChild(b);
   });
-
-  const messagesEl = document.getElementById("messages");
-
-  function appendMessage(m) {
-    const mine = m.sender === "admin";
-    const div = document.createElement("div");
-    div.className = "bubble " + (mine ? "mine" : "theirs");
-    let inner = "";
-    if (m.image_url) inner += `<img src="${m.image_url}" alt="photo" />`;
-    if (m.content) inner += `<div>${escapeHtml(m.content)}</div>`;
-    inner += `<div class="time">${new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>`;
-    div.innerHTML = inner;
-    messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  }
-
-  const { data: existing } = await db
-    .from("messages")
-    .select("*")
-    .eq("worker_id", workerId)
-    .order("created_at", { ascending: true });
-  (existing || []).forEach(appendMessage);
-
-  currentChannel = db
-    .channel(`messages:${workerId}`)
-    .on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "messages", filter: `worker_id=eq.${workerId}` },
-      (payload) => appendMessage(payload.new)
-    )
-    .subscribe();
-
-  document.getElementById("composer-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const input = document.getElementById("text-input");
-    const text = input.value.trim();
-    if (!text) return;
-    input.value = "";
-    await db.from("messages").insert({ worker_id: workerId, sender: "admin", content: text });
-  });
-
-  document.getElementById("photo-input").addEventListener("change", async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      alert("Only photos are allowed.");
-      return;
-    }
-    const path = `${workerId}/${Date.now()}-${file.name}`;
-    const { error: uploadError } = await db.storage.from("chat-photos").upload(path, file);
-    if (uploadError) {
-      alert("Photo upload failed.");
-      return;
-    }
-    const { data: publicUrlData } = db.storage.from("chat-photos").getPublicUrl(path);
-    await db.from("messages").insert({ worker_id: workerId, sender: "admin", image_url: publicUrlData.publicUrl });
-    e.target.value = "";
-  });
+  document.getElementById("set-dark").onclick = ()=>{ applyTheme("dark"); api("/app_users?id=eq."+state.user.id,{method:"PATCH",body:JSON.stringify({theme:"dark"})}); renderSettings(); };
+  document.getElementById("set-light").onclick = ()=>{ applyTheme("light"); api("/app_users?id=eq."+state.user.id,{method:"PATCH",body:JSON.stringify({theme:"light"})}); renderSettings(); };
+  document.getElementById("lang-select").onchange = (e)=>{ lang = e.target.value; toast("Language set to " + e.target.options[e.target.selectedIndex].text); };
+  document.getElementById("save-profile-btn").onclick = async ()=>{
+    const status = document.getElementById("status-input").value.trim();
+    await api("/app_users?id=eq."+state.user.id, {method:"PATCH", body: JSON.stringify({avatar_emoji: state.user.avatar_emoji, status})});
+    state.user.status = status;
+    document.getElementById("me-avatar").textContent = state.user.avatar_emoji || (state.user.display_name||"?")[0].toUpperCase();
+    toast("Profile saved.");
+    await refreshUsers();
+  };
+  document.getElementById("change-pw-btn").onclick = async ()=>{
+    const cur = document.getElementById("cur-pw").value;
+    const nw = document.getElementById("new-pw").value;
+    const err = document.getElementById("pw-error");
+    err.style.display = "none";
+    if(!nw || nw.length < 6){ err.textContent = "New password should be at least 6 characters."; err.style.display="block"; return; }
+    try{
+      const r = await rpc("change_own_password", {p_user_id: state.user.id, p_old_password: cur, p_new_password: nw});
+      if(!r.ok){ err.textContent = r.error; err.style.display="block"; return; }
+      toast("Password updated.");
+      document.getElementById("cur-pw").value=""; document.getElementById("new-pw").value="";
+    }catch(e){ err.textContent = "Something went wrong."; err.style.display="block"; }
+  };
 }
 
-(async () => {
-  const { data: { user } } = await db.auth.getUser();
-  if (user && user.email === ADMIN_EMAIL) renderDashboard();
-  else renderLogin();
-})();
+// ---------- Admin: Overview ----------
+function renderOverview(){
+  const main = document.getElementById("main-area");
+  const members = state.users.filter(u=>u.role==="member");
+  main.innerHTML = `
+    <div class="panel-scroll">
+      <h2 class="section-title">Overview</h2>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="num">${members.length}</div><div class="lbl">Members</div></div>
+        <div class="stat-card"><div class="num">${state.messages.length}</div><div class="lbl">Messages sent</div></div>
+        <div class="stat-card"><div class="num">${state.messages.filter(m=>m.pinned).length}</div><div class="lbl">Pinned</div></div>
+      </div>
+      <h3 style="font-family:'Space Grotesk';font-size:14px;">Members</h3>
+      <table class="member-table"><tbody>
+        ${members.map((u,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(u.display_name)}</td><td class="mono" style="color:var(--muted);">${escapeHtml(u.username)}</td></tr>`).join("") || `<tr><td colspan="3" style="color:var(--muted);">No members yet — add one from the Members tab.</td></tr>`}
+      </tbody></table>
+    </div>
+  `;
+}
+
+// ---------- Admin: Members ----------
+function renderMembers(){
+  const main = document.getElementById("main-area");
+  const members = state.users.filter(u=>u.role==="member");
+  main.innerHTML = `
+    <div class="panel-scroll">
+      <h2 class="section-title">Members</h2>
+      <div class="settings-card">
+        <h3>Add a member</h3>
+        <p class="desc">Creates a login the person will use to sign in.</p>
+        <div id="add-error" class="error-box" style="display:none;"></div>
+        <div class="field"><label>Display name</label><input id="new-display" type="text" /></div>
+        <div class="field"><label>Username</label><input id="new-username" type="text" /></div>
+        <div class="field"><label>Password</label><input id="new-password" type="text" /></div>
+        <button class="btn btn-primary" id="add-member-btn" style="width:auto;">Add member</button>
+      </div>
+      <table class="member-table">
+        <thead><tr><th>#</th><th>Name</th><th>Username</th><th>Actions</th></tr></thead>
+        <tbody>
+        ${members.map((u,i)=>`
+          <tr>
+            <td>${i+1}</td>
+            <td>${escapeHtml(u.display_name)}</td>
+            <td class="mono" style="color:var(--muted);">${escapeHtml(u.username)}</td>
+            <td class="row-actions">
+              <button class="btn btn-ghost" data-reset="${u.id}">Reset password</button>
+              <button class="btn btn-danger" data-del="${u.id}">Remove</button>
+            </td>
+          </tr>`).join("") || `<tr><td colspan="4" style="color:var(--muted);">No members yet.</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+  document.getElementById("add-member-btn").onclick = async ()=>{
+    const dn = document.getElementById("new-display").value.trim();
+    const un = document.getElementById("new-username").value.trim();
+    const pw = document.getElementById("new-password").value;
+    const err = document.getElementById("add-error");
+    err.style.display = "none";
+    if(!dn || !un || pw.length < 6){ err.textContent = "Fill in all fields — password needs 6+ characters."; err.style.display="block"; return; }
+    try{
+      const r = await rpc("admin_create_user", {p_admin_id: state.user.id, p_username: un, p_password: pw, p_display_name: dn});
+      if(!r.ok){ err.textContent = r.error; err.style.display="block"; return; }
+      toast(`${dn} added — share the username/password with them.`);
+      await refreshUsers();
+      renderMembers();
+    }catch(e){ err.textContent = "Something went wrong."; err.style.display="block"; }
+  };
+  main.querySelectorAll("[data-reset]").forEach(b=>{
+    b.onclick = async ()=>{
+      const pw = prompt("Set a new password for this member (6+ characters):");
+      if(!pw || pw.length < 6) return;
+      const r = await rpc("admin_reset_password", {p_admin_id: state.user.id, p_target_id: b.dataset.reset, p_new_password: pw});
+      if(r.ok) toast("Password reset — share it with them.");
+      else toast(r.error);
+    };
+  });
+  main.querySelectorAll("[data-del]").forEach(b=>{
+    b.onclick = async ()=>{
+      if(!confirm("Remove this member? They won't be able to log in anymore.")) return;
+      const r = await rpc("admin_delete_user", {p_admin_id: state.user.id, p_target_id: b.dataset.del});
+      if(r.ok){ toast("Member removed."); await refreshUsers(); renderMembers(); }
+      else toast(r.error);
+    };
+  });
+}
 </script>
 </body>
 </html>
